@@ -35,6 +35,8 @@ from authentik.enterprise.models import (
     LicenseUsage,
     LicenseUsageStatus,
 )
+from authentik.lib.config import CONFIG
+from authentik.root.cache import in_memory_cache
 from authentik.root.install_id import get_install_id
 
 CACHE_KEY_ENTERPRISE_LICENSE = "goauthentik.io/enterprise/license"
@@ -237,11 +239,18 @@ class LicenseKey:
             asdict(summary),
             timeout=CACHE_EXPIRY_ENTERPRISE_LICENSE,
         )
+        # Only clear this process's copy: summary() also runs on a cache miss in any
+        # process, so broadcasting here would make processes invalidate each other
+        LicenseKey.cached_summary.cache_clear()
         return summary
 
     @staticmethod
+    @in_memory_cache(
+        key=lambda: None, timeout=CONFIG.get_int("cache.timeout_enterprise_license", 120)
+    )
     def cached_summary() -> LicenseSummary:
-        """Helper method which looks up the last summary"""
+        """Helper method which looks up the last summary. The returned object is shared,
+        don't mutate it."""
         summary = cache.get(CACHE_KEY_ENTERPRISE_LICENSE)
         if not summary:
             return LicenseKey.get_total().summary()

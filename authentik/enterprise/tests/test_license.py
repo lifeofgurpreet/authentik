@@ -160,3 +160,22 @@ class TestEnterpriseLicense(TestCase):
     def test_expiry_soon(self):
         """Check license verification"""
         self.assertEqual(LicenseKey.get_total().summary().status, LicenseUsageStatus.EXPIRY_SOON)
+
+    @enterprise_test()
+    def test_cached_summary_in_memory(self):
+        """The summary is read from the shared cache once, then served from process memory"""
+        summary = LicenseKey.cached_summary()
+        with self.assertNumQueries(0):
+            self.assertIs(LicenseKey.cached_summary(), summary)
+        # Recalculating the summary in this process replaces the in-memory copy
+        LicenseKey.get_total().summary()
+        self.assertIsNot(LicenseKey.cached_summary(), summary)
+
+    @enterprise_test()
+    def test_cached_summary_license_change(self):
+        """Saving or deleting a license clears the in-memory summary"""
+        self.assertEqual(LicenseKey.cached_summary().internal_users, 100)
+        License.objects.create(key=generate_id())
+        self.assertEqual(LicenseKey.cached_summary().internal_users, 200)
+        License.objects.all().delete()
+        self.assertEqual(LicenseKey.cached_summary().status, LicenseUsageStatus.UNLICENSED)
