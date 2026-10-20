@@ -237,9 +237,6 @@ async fn health_live(State(server): State<Arc<Server>>) -> Result<StatusCode> {
         return Ok(StatusCode::SERVICE_UNAVAILABLE);
     }
 
-    if !server.health_live().await? {
-        return Ok(StatusCode::SERVICE_UNAVAILABLE);
-    }
     match server.health_live().await {
         Ok(true) => {}
         Ok(false) => {
